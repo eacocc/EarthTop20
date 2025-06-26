@@ -3,7 +3,8 @@ What were the 20 most valuable news articles on Earth yesterday?</br>
 What were the top 20 most valuable news articles on Earth last month?</br>
 What were the top 20 most valuable news articles on Earth last year?</br>
 Earth E Finance:https://t.me/eaco_e88 </br>
-Arab E17 Middle East eaco17 Telegram Exchange Group, https://t.me/earabiceaco
+Arab E17 Middle East eaco17 Telegram Exchange Group, https://t.me/earabiceaco </br>
+Welcome to join us as volunteer programmers </br>
 </br>
 # Meridian: Your Personal Intelligence Agency
 [![Build Status](https://img.shields.io/github/actions/workflow/status/iliane5/meridian/deploy-services.yaml?branch=main)](https://github.com/iliane5/meridian/actions/workflows/deploy-services.yaml)
