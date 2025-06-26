@@ -2,7 +2,7 @@ Exploring AI driven development of E&EACO and training AI to promote the applica
 What were the 20 most valuable news articles on Earth yesterday?</br>
 What were the top 20 most valuable news articles on Earth last month?</br>
 What were the top 20 most valuable news articles on Earth last year?</br>
-https://t.me/eaco_e88 </br>
+Earth E Finance:https://t.me/eaco_e88 </br>
 Arab E17 Middle East eaco17 Telegram Exchange Group, https://t.me/earabiceaco
 </br>
 # Meridian: Your Personal Intelligence Agency
