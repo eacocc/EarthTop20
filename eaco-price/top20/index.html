@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EACO实时价格监控 | Earth's Best Coin</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.8/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind 配置 -->
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3B82F6',
+                        secondary: '#10B981',
+                        accent: '#8B5CF6',
+                        dark: '#1E293B',
+                        light: '#F8FAFC',
+                        danger: '#EF4444',
+                        warning: '#F59E0B'
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .price-up {
+                @apply text-secondary;
+            }
+            .price-down {
+                @apply text-danger;
+            }
+            .card-hover {
+                @apply transition-all duration-300 hover:shadow-lg hover:-translate-y-1;
+            }
+            .gradient-bg {
+                @apply bg-gradient-to-r from-primary to-accent;
+            }
+        }
+    </style>
+</head>
+<body class="font-inter bg-gray-50 text-dark">
+    <!-- 导航栏 -->
+    <header class="sticky top-0 z-50 bg-white shadow-md transition-all duration-300">
+        <div class="container mx-auto px-4 py-3 flex flex-wrap items-center justify-between">
+            <div class="flex items-center">
+                <div class="text-2xl font-bold gradient-bg text-transparent bg-clip-text mr-2">EACO</div>
+                <span class="text-sm text-gray-500 hidden sm:inline">Earth's Best Coin</span>
+            </div>
+            
+            <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+                <button id="refreshBtn" class="flex items-center text-sm bg-primary/10 hover:bg-primary/20 text-primary px-3 py-1.5 rounded-full transition-all">
+                    <i class="fa fa-refresh mr-1.5"></i> 刷新数据
+                </button>
+                <div class="relative">
+                    <button id="currencyToggle" class="flex items-center text-sm bg-gray-100 hover:bg-gray-200 px-3 py-1.5 rounded-full transition-all">
+                        <i class="fa fa-globe mr-1.5"></i> <span id="currentCurrency">CNH</span>
+                        <i class="fa fa-chevron-down ml-1.5 text-xs"></i>
+                    </button>
+                    <div id="currencyDropdown" class="hidden absolute right-0 mt-2 w-36 bg-white rounded-lg shadow-lg py-1 z-10">
+                        <a href="#" class="currency-option block px-4 py-2 text-sm hover:bg-gray-100" data-currency="CNH">CNH (人民币)</a>
+                        <a href="#" class="currency-option block px-4 py-2 text-sm hover:bg-gray-100" data-currency="USDT">USDT</a>
+                        <a href="#" class="currency-option block px-4 py-2 text-sm hover:bg-gray-100" data-currency="USDC">USDC</a>
+                        <a href="#" class="currency-option block px-4 py-2 text-sm hover:bg-gray-100" data-currency="SOL">SOL</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="container mx-auto px-4 py-6">
+        <!-- 最后更新时间 -->
+        <div class="text-right text-sm text-gray-500 mb-4">
+            最后更新: <span id="lastUpdated">加载中...</span>
+        </div>
+        
+        <!-- EACO主价格卡片 -->
+        <section class="mb-8">
+            <div class="bg-white rounded-2xl shadow-md p-6 md:p-8">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+                    <div>
+                        <h2 class="text-2xl md:text-3xl font-bold mb-1">EACO 实时价格</h2>
+                        <p class="text-gray-500">整合多个DEX数据源的实时价格信息</p>
+                    </div>
+                    <div class="flex space-x-2 mt-4 md:mt-0">
+                        <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full">Meteora</span>
+                        <span class="px-2 py-1 bg-purple-100 text-purple-800 text-xs rounded-full">Orca</span>
+                        <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">Raydium</span>
+                        <span class="px-2 py-1 bg-orange-100 text-orange-800 text-xs rounded-full">CoinMarketCap</span>
+                        <span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">Dexscreener</span>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+                    <!-- 主价格显示 -->
+                    <div class="md:col-span-2 flex flex-col">
+                        <div class="flex items-end">
+                            <span id="eacoPrice" class="text-4xl md:text-5xl font-bold mr-3">--</span>
+                            <div id="priceChange" class="mb-1 px-2 py-0.5 rounded text-sm font-medium">
+                                --
+                            </div>
+                        </div>
+                        <div class="text-gray-500 mt-1">
+                            <span id="priceSource">数据加载中...</span>
+                        </div>
+                        
+                        <!-- 价格图表 -->
+                        <div class="mt-6 h-48">
+                            <canvas id="priceChart"></canvas>
+                        </div>
+                    </div>
+                    
+                    <!-- 其他货币价格 -->
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-xl">
+                            <div class="text-sm text-gray-500 mb-1">EACO/USDT</div>
+                            <div class="flex justify-between items-center">
+                                <span id="eacoUsdtPrice" class="text-xl font-semibold">--</span>
+                                <span id="usdtChange" class="text-sm">--</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">来源: Meteora</div>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-xl">
+                            <div class="text-sm text-gray-500 mb-1">EACO/USDC</div>
+                            <div class="flex justify-between items-center">
+                                <span id="eacoUsdcPrice" class="text-xl font-semibold">--</span>
+                                <span id="usdcChange" class="text-sm">--</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">来源: Orca</div>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="bg-gray-50 p-4 rounded-xl">
+                            <div class="text-sm text-gray-500 mb-1">EACO/SOL</div>
+                            <div class="flex justify-between items-center">
+                                <span id="eacoSolPrice" class="text-xl font-semibold">--</span>
+                                <span id="solChange" class="text-sm">--</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">来源: Raydium</div>
+                        </div>
+                        
+                        <div class="bg-gray-50 p-4 rounded-xl">
+                            <div class="text-sm text-gray-500 mb-1">EACO/CNH</div>
+                            <div class="flex justify-between items-center">
+                                <span id="eacoCnhPrice" class="text-xl font-semibold">--</span>
+                                <span id="cnhChange" class="text-sm">--</span>
+                            </div>
+                            <div class="text-xs text-gray-500 mt-1">基于USDT汇率换算</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 各交易所价格对比 -->
+        <section class="mb-8">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-xl font-bold">交易所价格对比</h2>
+                <span class="text-sm text-gray-500">所有价格均以USDT为单位</span>
+            </div>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                <!-- Meteora -->
+                <div class="bg-white rounded-xl shadow-sm p-4 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="font-medium">Meteora</div>
+                        <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs rounded-full">E-USDT</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1" id="meteoraPrice">--</div>
+                    <div class="flex items-center text-sm">
+                        <span id="meteoraChange" class="mr-2">--</span>
+                        <span class="text-gray-500">24h</span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        <a href="https://app.meteora.ag/dlmm/6ZfCi3qzhgDN1ygHVYXvfsfrwz8ZhQ7hD5mJtjeuUDyE" target="_blank" class="hover:text-primary">查看市场 <i class="fa fa-external-link ml-1"></i></a>
+                    </div>
+                </div>
+                
+                <!-- Orca 1 -->
+                <div class="bg-white rounded-xl shadow-sm p-4 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="font-medium">Orca</div>
+                        <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-xs rounded-full">E-USDC</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1" id="orcaPrice1">--</div>
+                    <div class="flex items-center text-sm">
+                        <span id="orcaChange1" class="mr-2">--</span>
+                        <span class="text-gray-500">24h</span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        <a href="https://www.orca.so/pools/Cm6EkxcYNfvxeYDBQ3TGXFqa9NCWvrFKHz4Cfju91dhr" target="_blank" class="hover:text-primary">查看市场 <i class="fa fa-external-link ml-1"></i></a>
+                    </div>
+                </div>
+                
+                <!-- Orca 2 -->
+                <div class="bg-white rounded-xl shadow-sm p-4 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="font-medium">Orca</div>
+                        <span class="px-2 py-0.5 bg-purple-100 text-purple-800 text-xs rounded-full">E-USDC</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1" id="orcaPrice2">--</div>
+                    <div class="flex items-center text-sm">
+                        <span id="orcaChange2" class="mr-2">--</span>
+                        <span class="text-gray-500">24h</span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        <a href="https://www.orca.so/pools?tokens=DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH" target="_blank" class="hover:text-primary">查看市场 <i class="fa fa-external-link ml-1"></i></a>
+                    </div>
+                </div>
+                
+                <!-- Raydium -->
+                <div class="bg-white rounded-xl shadow-sm p-4 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="font-medium">Raydium</div>
+                        <span class="px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full">E-SOL</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1" id="raydiumPrice">--</div>
+                    <div class="flex items-center text-sm">
+                        <span id="raydiumChange" class="mr-2">--</span>
+                        <span class="text-gray-500">24h</span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        <a href="https://raydium.io/swap/?inputMint=DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH&outputMint=sol" target="_blank" class="hover:text-primary">查看市场 <i class="fa fa-external-link ml-1"></i></a>
+                    </div>
+                </div>
+                
+                <!-- Dexscreener -->
+                <div class="bg-white rounded-xl shadow-sm p-4 card-hover">
+                    <div class="flex justify-between items-start mb-3">
+                        <div class="font-medium">Dexscreener</div>
+                        <span class="px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full">综合</span>
+                    </div>
+                    <div class="text-2xl font-bold mb-1" id="dexscreenerPrice">--</div>
+                    <div class="flex items-center text-sm">
+                        <span id="dexscreenerChange" class="mr-2">--</span>
+                        <span class="text-gray-500">24h</span>
+                    </div>
+                    <div class="mt-3 text-xs text-gray-500">
+                        <a href="https://dexscreener.com/solana/DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH" target="_blank" class="hover:text-primary">查看市场 <i class="fa fa-external-link ml-1"></i></a>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- 前20大数字货币价格 -->
+        <section class="mb-8">
+            <h2 class="text-xl font-bold mb-4">前20大数字货币兑EACO汇率</h2>
+            
+            <div class="bg-white rounded-xl shadow-sm overflow-hidden">
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">排名</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">名称</th>
+                                <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">符号</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">价格 (USD)</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">24h 变化</th>
+                                <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">可兑换 EACO 数量</th>
+                            </tr>
+                        </thead>
+                        <tbody id="topCryptosTable" class="bg-white divide-y divide-gray-200">
+                            <!-- 表格内容将通过JavaScript动态填充 -->
+                            <tr>
+                                <td colspan="6" class="px-6 py-10 text-center text-gray-500">
+                                    <i class="fa fa-spinner fa-spin mr-2"></i> 加载数据中...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+        
+        <!-- API状态和来源信息 -->
+        <section class="mb-8">
+            <div class="bg-white rounded-xl shadow-sm p-6">
+                <h2 class="text-xl font-bold mb-4">API状态监控</h2>
+                
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="font-medium">主要API</div>
+                            <span id="primaryApiStatus" class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">检查中</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-1">Meteora API</div>
+                        <div class="text-xs text-gray-500">响应时间: <span id="primaryApiResponse">--</span> ms</div>
+                    </div>
+                    
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="font-medium">次要API</div>
+                            <span id="secondaryApiStatus" class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">检查中</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-1">Orca API</div>
+                        <div class="text-xs text-gray-500">响应时间: <span id="secondaryApiResponse">--</span> ms</div>
+                    </div>
+                    
+                    <div class="p-4 border border-gray-200 rounded-lg">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="font-medium">备用API</div>
+                            <span id="fallbackApiStatus" class="px-2 py-0.5 bg-yellow-100 text-yellow-800 text-xs rounded-full">检查中</span>
+                        </div>
+                        <div class="text-sm text-gray-600 mb-1">Dexscreener API</div>
+                        <div class="text-xs text-gray-500">响应时间: <span id="fallbackApiResponse">--</span> ms</div>
+                    </div>
+                </div>
+                
+                <div class="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <h3 class="font-medium mb-2">数据来源说明</h3>
+                    <ul class="text-sm text-gray-600 space-y-1.5">
+                        <li><i class="fa fa-info-circle text-primary mr-2"></i> 价格数据每30秒自动更新一次</li>
+                        <li><i class="fa fa-info-circle text-primary mr-2"></i> 主要数据源为Meteora，当主要数据源不可用时自动切换至备用源</li>
+                        <li><i class="fa fa-info-circle text-primary mr-2"></i> CNH价格基于实时USD/CNH汇率换算</li>
+                        <li><i class="fa fa-info-circle text-primary mr-2"></i> 所有数据仅供参考，实际交易价格以交易所实时数据为准</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- 页脚 -->
+    <footer class="bg-dark text-white py-8">
+        <div class="container mx-auto px-4">
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+                <div>
+                    <div class="text-2xl font-bold mb-4 gradient-bg text-transparent bg-clip-text">EACO</div>
+                    <p class="text-gray-400 text-sm">Earth's Best Coin<br>代码e即财富</p>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold mb-4">快速链接</h3>
+                    <ul class="space-y-2 text-gray-400 text-sm">
+                        <li><a href="#" class="hover:text-white transition-colors">Linktree</a></li>
+                        <li><a href="https://solscan.io/token/DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH" target="_blank" class="hover:text-white transition-colors">Solscan</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">X (Twitter)</a></li>
+                        <li><a href="#" class="hover:text-white transition-colors">华语社区</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold mb-4">DEX市场</h3>
+                    <ul class="space-y-2 text-gray-400 text-sm">
+                        <li><a href="https://app.meteora.ag/dlmm/6ZfCi3qzhgDN1ygHVYXvfsfrwz8ZhQ7hD5mJtjeuUDyE" target="_blank" class="hover:text-white transition-colors">Meteora</a></li>
+                        <li><a href="https://www.orca.so/pools?tokens=DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH" target="_blank" class="hover:text-white transition-colors">Orca</a></li>
+                        <li><a href="https://raydium.io/swap/?inputMint=DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH&outputMint=sol" target="_blank" class="hover:text-white transition-colors">Raydium</a></li>
+                        <li><a href="https://dexscreener.com/solana/DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH" target="_blank" class="hover:text-white transition-colors">Dexscreener</a></li>
+                    </ul>
+                </div>
+                
+                <div>
+                    <h3 class="font-semibold mb-4">关于EACO</h3>
+                    <p class="text-gray-400 text-sm">
+                        EACO连接地球和宇宙的一切，<br>
+                        计算劳动价值，量化地球资源。<br>
+                        $e=$eaco
+                    </p>
+                </div>
+            </div>
+            
+            <div class="border-t border-gray-800 mt-8 pt-6 text-center text-gray-500 text-sm">
+                <p>© 2025 EACO. 价格仅供参考，以实际交易价格为准。</p>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        // 全局变量
+        let currentCurrency = 'CNH';
+        let priceChart = null;
+        let historicalData = [];
+        let usdToCnhRate = 7.17; // 初始汇率，实际应用中应从API获取
+        
+        // DOM元素加载完成后执行
+        document.addEventListener('DOMContentLoaded', function() {
+            // 初始化图表
+            initChart();
+            
+            // 绑定事件
+            document.getElementById('refreshBtn').addEventListener('click', refreshAllData);
+            document.getElementById('currencyToggle').addEventListener('click', toggleCurrencyDropdown);
+            
+            // 货币选择
+            document.querySelectorAll('.currency-option').forEach(option => {
+                option.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    currentCurrency = this.getAttribute('data-currency');
+                    document.getElementById('currentCurrency').textContent = currentCurrency;
+                    document.getElementById('currencyDropdown').classList.add('hidden');
+                    updatePriceDisplay(); // 更新价格显示
+                });
+            });
+            
+            // 点击页面其他地方关闭货币下拉菜单
+            document.addEventListener('click', function(e) {
+                const toggle = document.getElementById('currencyToggle');
+                const dropdown = document.getElementById('currencyDropdown');
+                if (!toggle.contains(e.target) && !dropdown.contains(e.target)) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+            
+            // 初始加载数据
+            refreshAllData();
+            
+            // 设置自动刷新（每30秒）
+            setInterval(refreshAllData, 30000);
+        });
+        
+        // 初始化价格图表
+        function initChart() {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            priceChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'EACO 价格 (USD)',
+                        data: [],
+                        borderColor: '#3B82F6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.3,
+                        pointRadius: 0,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return `价格: $${context.parsed.y.toFixed(6)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: false
+                        },
+                        y: {
+                            display: false
+                        }
+                    },
+                    interaction: {
+                        mode: 'nearest',
+                        axis: 'x',
+                        intersect: false
+                    }
+                }
+            });
+        }
+        
+        // 刷新所有数据
+        function refreshAllData() {
+            // 显示加载状态
+            showLoadingState();
+            
+            // 并行获取所有数据源
+            Promise.all([
+                fetchMeteoraData(),
+                fetchOrcaData1(),
+                fetchOrcaData2(),
+                fetchRaydiumData(),
+                fetchDexscreenerData(),
+                fetchTopCryptosData()
+            ]).then(results => {
+                // 处理所有数据
+                processMeteoraData(results[0]);
+                processOrcaData1(results[1]);
+                processOrcaData2(results[2]);
+                processRaydiumData(results[3]);
+                processDexscreenerData(results[4]);
+                processTopCryptosData(results[5]);
+                
+                // 更新最后更新时间
+                updateLastUpdatedTime();
+                
+                // 隐藏加载状态
+                hideLoadingState();
+                
+                // 更新API状态
+                updateApiStatus(true, 'primaryApi');
+                updateApiStatus(true, 'secondaryApi');
+                updateApiStatus(true, 'fallbackApi');
+                
+            }).catch(error => {
+                console.error('数据获取失败:', error);
+                hideLoadingState();
+                
+                // 更新API状态为错误
+                updateApiStatus(false, 'primaryApi');
+                updateApiStatus(false, 'secondaryApi');
+                updateApiStatus(false, 'fallbackApi');
+                
+                // 显示错误消息
+                showErrorMessage('无法获取最新数据，请稍后重试');
+            });
+        }
+        
+        // 获取Meteora数据 (主要API)
+        function fetchMeteoraData() {
+            const startTime = performance.now();
+            
+            // 实际项目中应替换为真实API调用
+            // 这里使用模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const endTime = performance.now();
+                    document.getElementById('primaryApiResponse').textContent = Math.round(endTime - startTime);
+                    
+                    resolve({
+                        price: 0.003205,
+                        change24h: 2.45,
+                        volume: 125000
+                    });
+                }, 500 + Math.random() * 300);
+            });
+            
+            // 真实API调用示例（需要处理CORS）
+            /*
+            return fetch('https://api.meteora.ag/v1/pools/6ZfCi3qzhgDN1ygHVYXvfsfrwz8ZhQ7hD5mJtjeuUDyE')
+                .then(response => {
+                    if (!response.ok) throw new Error('Meteora API 响应错误');
+                    return response.json();
+                });
+            */
+        }
+        
+        // 获取Orca数据1 (次要API)
+        function fetchOrcaData1() {
+            const startTime = performance.now();
+            
+            // 模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const endTime = performance.now();
+                    document.getElementById('secondaryApiResponse').textContent = Math.round(endTime - startTime);
+                    
+                    resolve({
+                        price: 0.003212,
+                        change24h: 2.38,
+                        volume: 98000
+                    });
+                }, 600 + Math.random() * 300);
+            });
+            
+            // 真实API调用示例
+            /*
+            return fetch('https://api.orca.so/v1/pools/Cm6EkxcYNfvxeYDBQ3TGXFqa9NCWvrFKHz4Cfju91dhr')
+                .then(response => {
+                    if (!response.ok) throw new Error('Orca API 响应错误');
+                    return response.json();
+                });
+            */
+        }
+        
+        // 获取Orca数据2
+        function fetchOrcaData2() {
+            // 模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        price: 0.003209,
+                        change24h: 2.41,
+                        volume: 85000
+                    });
+                }, 550 + Math.random() * 300);
+            });
+        }
+        
+        // 获取Raydium数据
+        function fetchRaydiumData() {
+            // 模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve({
+                        price: 0.00001875, // EACO/SOL价格
+                        solPrice: 171.25,  // SOL/USD价格
+                        change24h: 2.25,
+                        volume: 75000
+                    });
+                }, 650 + Math.random() * 300);
+            });
+        }
+        
+        // 获取Dexscreener数据 (备用API)
+        function fetchDexscreenerData() {
+            const startTime = performance.now();
+            
+            // 模拟数据
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    const endTime = performance.now();
+                    document.getElementById('fallbackApiResponse').textContent = Math.round(endTime - startTime);
+                    
+                    resolve({
+                        price: 0.003207,
+                        change24h: 2.43,
+                        volume: 383000,
+                        liquidity: 125000
+                    });
+                }, 700 + Math.random() * 300);
+            });
+            
+            // 真实API调用示例
+            /*
+            return fetch('https://api.dexscreener.com/latest/dex/tokens/DqfoyZH96RnvZusSp3Cdncjpyp3C74ZmJzGhjmHnDHRH')
+                .then(response => {
+                    if (!response.ok) throw new Error('Dexscreener API 响应错误');
+                    return response.json();
+                });
+            */
+        }
+        
+        // 获取前20大数字货币数据
+        function fetchTopCryptosData() {
+            // 模拟数据 - 实际应用中应从CoinGecko或CoinMarketCap API获取
+            return new Promise((resolve) => {
+                setTimeout(() => {
+                    resolve([
+                        { rank: 1, name: "比特币", symbol: "BTC", price: 113440, change24h: 1.2, volume: 31990000000 },
+                        { rank: 2, name: "以太坊", symbol: "ETH", price: 4300, change24h: 0.8, volume: 24980000000 },
+                        { rank: 3, name: "泰达币", symbol: "USDT", price: 0.9997, change24h: 0.01, volume: 78390000000 },
+                        { rank: 4, name: "币安币", symbol: "BNB", price: 851.76, change24h: -0.5, volume: 1690000000 },
+                        { rank: 5, name: "索尔币", symbol: "SOL", price: 183.15, change24h: 2.3, volume: 4990000000 },
+                        { rank: 6, name: "USD Coin", symbol: "USDC", price: 0.9998, change24h: 0.02, volume: 13320000000 },
+                        { rank: 7, name: "瑞波币", symbol: "XRP", price: 2.88, change24h: -1.1, volume: 4270000000 },
+                        { rank: 8, name: "狗狗币", symbol: "DOGE", price: 0.2187, change24h: 3.2, volume: 2090000000 },
+                        { rank: 9, name: "艾达币", symbol: "ADA", price: 0.8642, change24h: 0.7, volume: 1500000000 },
+                        { rank: 10, name: "雪崩币", symbol: "AVAX", price: 23.19, change24h: -0.3, volume: 384470000 },
+                        { rank: 11, name: "柴犬币", symbol: "SHIB", price: 0.000013, change24h: 5.6, volume: 152160000 },
+                        { rank: 12, name: "比特币现金", symbol: "BCH", price: 561.68, change24h: 1.8, volume: 142500000 },
+                        { rank: 13, name: "波卡币", symbol: "DOT", price: 3.85, change24h: -0.9, volume: 166760000 },
+                        { rank: 14, name: "波场币", symbol: "TRX", price: 0.3559, change24h: 0.4, volume: 1080000000 },
+                        { rank: 15, name: "独角兽币", symbol: "UNI", price: 10.43, change24h: 2.1, volume: 343080000 },
+                        { rank: 16, name: "莱特币", symbol: "LTC", price: 116.09, change24h: -1.3, volume: 439360000 },
+                        { rank: 17, name: "链环币", symbol: "LINK", price: 25.13, change24h: 0.6, volume: 1980000000 },
+                        { rank: 18, name: "唯链", symbol: "VET", price: 0.0238, change24h: -2.2, volume: 41020000 },
+                        { rank: 19, name: "恒星币", symbol: "XLM", price: 0.3958, change24h: 1.5, volume: 230260000 },
+                        { rank: 20, name: "OKX平台币", symbol: "OKB", price: 239.49, change24h: 0.8, volume: 14410000000 }
+                    ]);
+                }, 800 + Math.random() * 400);
+            });
+        }
+        
+        // 处理Meteora数据
+        function processMeteoraData(data) {
+            if (!data) return;
+            
+            // 更新Meteora价格显示
+            document.getElementById('meteoraPrice').textContent = `$${data.price.toFixed(6)}`;
+            
+            // 更新价格变化和样式
+            const meteoraChangeEl = document.getElementById('meteoraChange');
+            meteoraChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            meteoraChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+            
+            // 更新EACO/USDT价格
+            document.getElementById('eacoUsdtPrice').textContent = `$${data.price.toFixed(6)}`;
+            
+            // 更新USDT价格变化
+            const usdtChangeEl = document.getElementById('usdtChange');
+            usdtChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            usdtChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+            
+            // 添加到历史数据用于图表
+            addToHistoricalData(data.price);
+            
+            // 更新主价格显示（如果是当前选中的货币）
+            updatePriceDisplay();
+        }
+        
+        // 处理Orca数据1
+        function processOrcaData1(data) {
+            if (!data) return;
+            
+            document.getElementById('orcaPrice1').textContent = `$${data.price.toFixed(6)}`;
+            
+            const orcaChange1El = document.getElementById('orcaChange1');
+            orcaChange1El.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            orcaChange1El.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+            
+            // 更新EACO/USDC价格
+            document.getElementById('eacoUsdcPrice').textContent = `$${data.price.toFixed(6)}`;
+            
+            // 更新USDC价格变化
+            const usdcChangeEl = document.getElementById('usdcChange');
+            usdcChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            usdcChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+        }
+        
+        // 处理Orca数据2
+        function processOrcaData2(data) {
+            if (!data) return;
+            
+            document.getElementById('orcaPrice2').textContent = `$${data.price.toFixed(6)}`;
+            
+            const orcaChange2El = document.getElementById('orcaChange2');
+            orcaChange2El.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            orcaChange2El.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+        }
+        
+        // 处理Raydium数据
+        function processRaydiumData(data) {
+            if (!data) return;
+            
+            // 显示EACO/SOL价格
+            document.getElementById('raydiumPrice').textContent = `${data.price.toFixed(8)} SOL`;
+            
+            const raydiumChangeEl = document.getElementById('raydiumChange');
+            raydiumChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            raydiumChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+            
+            // 更新EACO/SOL价格显示
+            document.getElementById('eacoSolPrice').textContent = `${data.price.toFixed(8)} SOL`;
+            
+            // 更新SOL价格变化
+            const solChangeEl = document.getElementById('solChange');
+            solChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            solChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+        }
+        
+        // 处理Dexscreener数据
+        function processDexscreenerData(data) {
+            if (!data) return;
+            
+            document.getElementById('dexscreenerPrice').textContent = `$${data.price.toFixed(6)}`;
+            
+            const dexscreenerChangeEl = document.getElementById('dexscreenerChange');
+            dexscreenerChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            dexscreenerChangeEl.className = `text-sm ${data.change24h >= 0 ? 'price-up' : 'price-down'}`;
+            
+            // 更新主价格变化显示
+            const priceChangeEl = document.getElementById('priceChange');
+            priceChangeEl.textContent = `${data.change24h > 0 ? '+' : ''}${data.change24h.toFixed(2)}%`;
+            priceChangeEl.className = `mb-1 px-2 py-0.5 rounded text-sm font-medium ${data.change24h >= 0 ? 'price-up bg-green-100' : 'price-down bg-red-100'}`;
+            
+            // 更新价格来源
+            document.getElementById('priceSource').textContent = `综合来源: 24h交易量 $${(data.volume / 1000000).toFixed(2)}M | 流动性 $${(data.liquidity / 1000000).toFixed(2)}M`;
+        }
+        
+        // 处理前20大数字货币数据
+        function processTopCryptosData(data) {
+            if (!data || !data.length) return;
+            
+            const tableBody = document.getElementById('topCryptosTable');
+            tableBody.innerHTML = '';
+            
+            // 获取当前EACO价格（使用Meteora的价格）
+            const eacoPriceText = document.getElementById('meteoraPrice').textContent;
+            const eacoPrice = parseFloat(eacoPriceText.replace('$', '')) || 0.0032;
+            
+            data.forEach(crypto => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50 transition-colors';
+                
+                // 计算可兑换的EACO数量
+                const eacoAmount = crypto.price / eacoPrice;
+                
+                // 格式化数量显示
+                let eacoDisplay;
+                if (eacoAmount >= 1000000) {
+                    eacoDisplay = `${(eacoAmount / 1000000).toFixed(2)}M EACO`;
+                } else if (eacoAmount >= 1000) {
+                    eacoDisplay = `${(eacoAmount / 1000).toFixed(2)}K EACO`;
+                } else {
+                    eacoDisplay = `${eacoAmount.toFixed(6)} EACO`;
+                }
+                
+                // 格式化价格
+                const priceDisplay = crypto.price >= 1 
+                    ? `$${crypto.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                    : `$${crypto.price.toFixed(6)}`;
+                
+                // 格式化交易量
+                const volumeDisplay = crypto.volume >= 1000000000 
+                    ? `$${(crypto.volume / 1000000000).toFixed(2)}B`
+                    : `$${(crypto.volume / 1000000).toFixed(2)}M`;
+                
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${crypto.rank}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">${crypto.name}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${crypto.symbol}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-right">${priceDisplay}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${crypto.change24h >= 0 ? 'price-up' : 'price-down'} text-right">
+                        ${crypto.change24h > 0 ? '+' : ''}${crypto.change24h.toFixed(2)}%
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 text-right">
+                        ${eacoDisplay}
+                    </td>
+                `;
+                
+                tableBody.appendChild(row);
+            });
+        }
+        
+        // 添加到历史数据
+        function addToHistoricalData(price) {
+            const now = new Date();
+            const timeLabel = `${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
+            
+            historicalData.push({
+                time: timeLabel,
+                price: price
+            });
+            
+            // 只保留最近30个数据点
+            if (historicalData.length > 30) {
+                historicalData.shift();
+            }
+            
+            // 更新图表
+            updateChart();
+        }
+        
+        // 更新图表
+        function updateChart() {
+            if (!priceChart) return;
+            
+            priceChart.data.labels = historicalData.map(item => item.time);
+            priceChart.data.datasets[0].data = historicalData.map(item => item.price);
+            priceChart.update();
+        }
+        
+        // 更新价格显示
+        function updatePriceDisplay() {
+            // 获取当前EACO USD价格
+            const eacoPriceText = document.getElementById('meteoraPrice').textContent;
+            const eacoUsdPrice = parseFloat(eacoPriceText.replace('$', '')) || 0;
+            
+            let displayPrice, symbol;
+            
+            switch(currentCurrency) {
+                case 'CNH':
+                    displayPrice = eacoUsdPrice * usdToCnhRate;
+                    symbol = '¥';
+                    break;
+                case 'USDT':
+                case 'USDC':
+                    displayPrice = eacoUsdPrice;
+                    symbol = '$';
+                    break;
+                case 'SOL':
+                    // 从Raydium数据获取EACO/SOL价格
+                    const solPriceText = document.getElementById('raydiumPrice').textContent;
+                    displayPrice = parseFloat(solPriceText.replace(' SOL', '')) || 0;
+                    symbol = 'SOL';
+                    break;
+                default:
+                    displayPrice = eacoUsdPrice;
+                    symbol = '$';
+            }
+            
+            // 格式化价格显示
+            const formattedPrice = currentCurrency === 'SOL' 
+                ? displayPrice.toFixed(8) 
+                : displayPrice.toFixed(6);
+            
+            // 更新主价格显示
+            document.getElementById('eacoPrice').textContent = `${symbol}${formattedPrice}`;
+            
+            // 更新CNH价格
+            if (eacoUsdPrice > 0) {
+                document.getElementById('eacoCnhPrice').textContent = `¥${(eacoUsdPrice * usdToCnhRate).toFixed(6)}`;
+            }
+        }
+        
+        // 更新最后更新时间
+        function updateLastUpdatedTime() {
+            const now = new Date();
+            const formattedTime = now.toLocaleString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+            document.getElementById('lastUpdated').textContent = formattedTime;
+        }
+        
+        // 切换货币下拉菜单
+        function toggleCurrencyDropdown() {
+            const dropdown = document.getElementById('currencyDropdown');
+            dropdown.classList.toggle('hidden');
+        }
+        
+        // 更新API状态
+        function updateApiStatus(isSuccess, apiType) {
+            const statusEl = document.getElementById(`${apiType}Status`);
+            
+            if (isSuccess) {
+                statusEl.textContent = '正常';
+                statusEl.className = 'px-2 py-0.5 bg-green-100 text-green-800 text-xs rounded-full';
+            } else {
+                statusEl.textContent = '异常';
+                statusEl.className = 'px-2 py-0.5 bg-red-100 text-red-800 text-xs rounded-full';
+            }
+        }
+        
+        // 显示加载状态
+        function showLoadingState() {
+            document.getElementById('refreshBtn').innerHTML = '<i class="fa fa-spinner fa-spin mr-1.5"></i> 加载中...';
+            document.getElementById('refreshBtn').disabled = true;
+        }
+        
+        // 隐藏加载状态
+        function hideLoadingState() {
+            document.getElementById('refreshBtn').innerHTML = '<i class="fa fa-refresh mr-1.5"></i> 刷新数据';
+            document.getElementById('refreshBtn').disabled = false;
+        }
+        
+        // 显示错误消息
+        function showErrorMessage(message) {
+            // 可以实现一个toast通知或提示框
+            console.error(message);
+        }
+    </script>
+</body>
+</html>
